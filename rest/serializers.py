@@ -1,14 +1,21 @@
-from rest_framework.serializers import Serializer
-from .models import Clients, Projects
+from rest_framework import serializers
+from .models import Clients, Projects, User
 
 
-class ClientSerializer(Serializer):
+class ClientSerializer(serializers.ModelSerializer):
+    created_by = serializers.SerializerMethodField()
+
     class Meta:
         model = Clients
-        fields = "__all__"
+        fields = ["id", "client_name", "created_at",
+                  "created_by", "updated_at"]
+
+    def get_created_by(self, obj):
+        return obj.created_by.username
 
 
-class ProjectSerializer(Serializer):
+class ProjectSerializer(serializers.Serializer):
     class Meta:
         model = Projects
-        fields = "__all__"
+        fields = ['id', 'project_name', 'client',
+                  'users', 'created_at', 'created_by']
