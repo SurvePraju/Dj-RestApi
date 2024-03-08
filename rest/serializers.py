@@ -2,32 +2,55 @@ from rest_framework import serializers
 from .models import Clients, Projects, User
 
 
-class UserSerializers(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ["id", "username"]
-
-
-class ClientProjectSerializer(serializers.ModelSerializer):
+class NestedProjectSerializer(serializers.ModelSerializer):
+    '''
+        Nested Serializer to expose projects objects i.e id, name.
+    '''
     class Meta:
         model = Projects
-        fields = ['id', 'project_name']
+        fields = ["id", "project_name"]
 
 
 class ClientSerializer(serializers.ModelSerializer):
     created_by = serializers.SerializerMethodField()
-    projects = ClientProjectSerializer(many=True, read_only=True)
 
     class Meta:
         model = Clients
+
         fields = ["id", "client_name", "created_at",
-                  "created_by", "projects"]
+                  "created_by"]
+
+    def get_created_by(self, obj):
+        return obj.created_by.username
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get("request")
+        if request:
+            if request.method in ["PUT", "PATCH"]:
+                # print(request.method)
+                # Add Field updated by dynamically based on the request Method being - PUT, PATCH
+                self.Meta.fields += ["updated_at"]
+
+
+class GetClientSerializer(serializers.ModelSerializer):
+    '''
+         For method with Id --- This displays the projects associated with Clients
+    '''
+    created_by = serializers.SerializerMethodField()
+    projects = NestedProjectSerializer()
+
+    class Meta:
+        model = Clients
+
+        fields = "__all__"
 
     def get_created_by(self, obj):
         return obj.created_by.username
 
 
 class CreateProjectSerializer(serializers.ModelSerializer):
+
     users = serializers.ListField(child=serializers.DictField())
 
     class Meta:
@@ -48,6 +71,9 @@ class CreateProjectSerializer(serializers.ModelSerializer):
 
 
 class ProjectSerializer(serializers.ModelSerializer):
+    """ 
+        Project Serializer - For all the projects Assocaited with Logged in User.
+    """
     created_by = serializers.SerializerMethodField()
 
     class Meta:

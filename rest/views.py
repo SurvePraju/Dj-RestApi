@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view
 from rest_framework import status
 from django.core.exceptions import ObjectDoesNotExist
 from .models import Clients, Projects, User
-from .serializers import ClientSerializer, ProjectSerializer, CreateProjectSerializer, UserSerializers
+from .serializers import ClientSerializer, ProjectSerializer, CreateProjectSerializer, GetClientSerializer
 
 import json
 
@@ -34,13 +34,14 @@ def client_details(request, id):
         return Response({"message": 'Client Not Found.'}, status=status.HTTP_404_NOT_FOUND)
     if request.method == "GET":
 
-        serialized_client = ClientSerializer(client)
+        serialized_client = GetClientSerializer(client)
 
         return Response(serialized_client.data, status=status.HTTP_200_OK)
 
     if request.method in ["PUT", "PATCH"]:
         update_data = request.data
-        update_serialized = ClientSerializer(client, data=update_data)
+        update_serialized = ClientSerializer(
+            client, data=update_data, context={'request': request})
         if update_serialized.is_valid():
             update_serialized.save()
             return Response(update_serialized.data, status=status.HTTP_202_ACCEPTED)
@@ -49,13 +50,13 @@ def client_details(request, id):
 
     if request.method == "DELETE":
         client.delete()
-        return Response(status=status.HTTP_200_OK)
+        return Response(status=status.HTTP_404_NOT_FOUND)
 
 
 @api_view(['POST', "GET"])
 def create_project(request, pk):
     try:
-        client = Clients.objects.select_related("projects").get(pk=pk)
+        client = Clients.objects.get(pk=pk)
     except Clients.DoesNotExist:
         return Response({'error': 'Client not found'}, status=404)
 
@@ -65,7 +66,7 @@ def create_project(request, pk):
 
     else:
         project_data = request.data
-        project_data["client"] = id  # Assign the client ID to the project data
+        project_data["client"] = client
 
         serializer = CreateProjectSerializer(data=project_data)
         if serializer.is_valid():
