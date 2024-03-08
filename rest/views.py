@@ -2,8 +2,10 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import status
 from django.core.exceptions import ObjectDoesNotExist
-from .models import Clients, Projects
-from .serializers import ClientSerializer, ProjectSerializer
+from .models import Clients, Projects, User
+from .serializers import ClientSerializer, ProjectSerializer, CreateProjectSerializer, UserSerializers
+
+import json
 
 
 @api_view(["GET", "POST"])
@@ -20,17 +22,18 @@ def clients(request):
             serialize.save(created_by=request.user)
             return Response(serialize.data, status=status.HTTP_201_CREATED)
         else:
-            return Response({"message": "Error"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serialize.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["GET", "PUT", "PATCH", "DELETE"])
 def client_details(request, id):
     try:
         client = Clients.objects.get(id=id)
-    except:
+    except ObjectDoesNotExist:
         # Clients.DoesNotExists
-        return Response({"message": ' no_obj'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"message": 'Client Not Found.'}, status=status.HTTP_404_NOT_FOUND)
     if request.method == "GET":
+
         serialized_client = ClientSerializer(client)
 
         return Response(serialized_client.data, status=status.HTTP_200_OK)
@@ -49,19 +52,33 @@ def client_details(request, id):
         return Response(status=status.HTTP_200_OK)
 
 
-@api_view(["POST"])
-def create_project(request, id):
+@api_view(['POST', "GET"])
+def create_project(request, pk):
     try:
-        client = Clients.objects.get(id=id)
-    except:
-        return Response({"message": "Client Does Not Exist."}, status=404)
+        client = Clients.objects.select_related("projects").get(pk=pk)
+    except Clients.DoesNotExist:
+        return Response({'error': 'Client not found'}, status=404)
 
-    project = request.data
-    if not project:
-        return Response({"EMPTY": "Please Provide Project Name"})
-    serialized_projects = ProjectSerializer(data=project)
-    if serialized_projects.is_valid():
-        serialized_projects.save(created_by=request.user, client=client)
-        return Response(serialized_projects.data, status=status.HTTP_201_CREATED)
+    if request.method == "GET":
+        client_data = ClientSerializer(client)
+        return Response(client_data.data)
+
     else:
-        return Response({"message": "Error"}, status=status.HTTP_400_BAD_REQUEST)
+        project_data = request.data
+        project_data["client"] = id  # Assign the client ID to the project data
+
+        serializer = CreateProjectSerializer(data=project_data)
+        if serializer.is_valid():
+            # Extract user IDs from the request data and add them to the project
+            user_ids = [user["id"] for user in project_data.get("users", [])]
+            serializer.save(created_by=request.user, users=user_ids)
+
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)
+
+
+@api_view(["GET"])
+def logged_in_user_projects(request):
+    projects = Projects.objects.filter(users=request.user)
+    serialized_projects = ProjectSerializer(projects, many=True)
+    return Response(serialized_projects.data)
