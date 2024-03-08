@@ -5,7 +5,8 @@ from django.contrib.auth.models import User
 class Clients(models.Model):
     client_name = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
-    projects = models.ForeignKey("Projects", on_delete=models.CASCADE)
+    projects = models.ForeignKey(
+        "Projects", on_delete=models.CASCADE, null=True)
     created_by = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="created_client")
     updated_at = models.DateTimeField(auto_now=True)
