@@ -5,8 +5,6 @@ from django.core.exceptions import ObjectDoesNotExist
 from .models import Clients, Projects, User
 from .serializers import ClientSerializer, ProjectSerializer, CreateProjectSerializer, GetClientSerializer
 
-import json
-
 
 @api_view(["GET", "POST"])
 def clients(request):
@@ -67,21 +65,36 @@ def create_project(request, pk):
 
     else:
         # Extract user IDs from request data
-        user_ids = [user_data.get('id')
-                    for user_data in request.data.get('users', [])]
-        print(user_ids)
+        user_data = [user_data for user_data in request.data.get('users', [])]
+        for user_details in user_data:
+            # print(user_details)
+            try:
+                user_id = User.objects.get(id=user_details.get("id"))
+                if user_id.username != user_details.get("name"):
+                    return Response({"Error": "Name or Id does not match existing Users."}, status=status.HTTP_406_NOT_ACCEPTABLE)
+            except User.DoesNotExist:
+                return Response({"Error": "User Does Not Exists"}, status=status.HTTP_404_NOT_FOUND)
+        '''
+            Change the input:-name field into username
+
+        '''
+        # for user in user_data:
+        #     username = user.pop("name")
+        #     user["username"] = username
+
+        user_data = [user["id"] for user in user_data]
+
         # Create project data including client ID
         project_data = {
             'project_name': request.data.get('project_name'),
-            'client': client.id,
-            'users': user_ids
+
+            'users': user_data
         }
 
         serializer = CreateProjectSerializer(data=project_data)
         if serializer.is_valid():
-            print(
-                "#******************************@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
-            serializer.save(created_by=request.user)
+
+            serializer.save(created_by=request.user, client=client)
             return Response(serializer.data, status=201)
         return Response(serializer.errors, status=400)
 

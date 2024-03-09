@@ -2,12 +2,6 @@ from rest_framework import serializers
 from .models import Clients, Projects, User
 
 
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ["id", "username"]
-
-
 class NestedProjectSerializer(serializers.ModelSerializer):
     '''
         Nested Serializer to expose projects objects i.e id, name.
@@ -71,11 +65,39 @@ class ProjectSerializer(serializers.ModelSerializer):
         return instance.created_by.username
 
 
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["id", "username"]
+
+
+class UsersWithIDAndNameField(serializers.RelatedField):
+    # displays both name and id
+    def to_representation(self, value):
+        serializer = UserSerializer(value, context=self.context)
+        return serializer.data
+
+    def to_internal_value(self, data):
+        try:
+            user_id = data
+            return User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("User does not exist")
+
+
 class CreateProjectSerializer(serializers.ModelSerializer):
     '''
         Create New Project and assigned already register users to the projects can be one or many. 
     '''
-    users = UserSerializer(many=True)
+    users = UsersWithIDAndNameField(queryset=User.objects.all(), many=True)
+    created_by = serializers.SerializerMethodField()
+    client = serializers.SerializerMethodField()
+
+    def get_created_by(self, instance):
+        return instance.created_by.username
+
+    def get_client(self, instance):
+        return instance.client.client_name
 
     class Meta:
         model = Projects
@@ -85,10 +107,7 @@ class CreateProjectSerializer(serializers.ModelSerializer):
         users_data = validated_data.pop('users', [])
         project = Projects.objects.create(**validated_data)
 
-        # Assign users to the project
-        for user_data in users_data:
-            user_id = user_data.get('id')
-            if user_id is not None:
-                project.users.add(user_id)
+        # Assign existing users to the project
+        project.users.add(*users_data)
 
         return project
