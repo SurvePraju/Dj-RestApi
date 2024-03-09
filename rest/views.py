@@ -29,6 +29,7 @@ def clients(request):
 def client_details(request, id):
     try:
         client = Clients.objects.get(id=id)
+
     except ObjectDoesNotExist:
         # Clients.DoesNotExists
         return Response({"message": 'Client Not Found.'}, status=status.HTTP_404_NOT_FOUND)
@@ -61,19 +62,26 @@ def create_project(request, pk):
         return Response({'error': 'Client not found'}, status=404)
 
     if request.method == "GET":
-        client_data = ClientSerializer(client)
+        client_data = GetClientSerializer(client)
         return Response(client_data.data)
 
     else:
-        project_data = request.data
-        project_data["client"] = client
+        # Extract user IDs from request data
+        user_ids = [user_data.get('id')
+                    for user_data in request.data.get('users', [])]
+        print(user_ids)
+        # Create project data including client ID
+        project_data = {
+            'project_name': request.data.get('project_name'),
+            'client': client.id,
+            'users': user_ids
+        }
 
         serializer = CreateProjectSerializer(data=project_data)
         if serializer.is_valid():
-            # Extract user IDs from the request data and add them to the project
-            user_ids = [user["id"] for user in project_data.get("users", [])]
-            serializer.save(created_by=request.user, users=user_ids)
-
+            print(
+                "#******************************@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+            serializer.save(created_by=request.user)
             return Response(serializer.data, status=201)
         return Response(serializer.errors, status=400)
 
